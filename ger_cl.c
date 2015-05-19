@@ -118,8 +118,8 @@ int main(int argc, char *argv[]){
 	//initializes the shared memory
 	Store_memory *shm;
 	shm = get_shared_memory(argv[1], sizeof(Store_memory));
-	printf("Primeiro num %d\n", shm->table[NM_FIFO][0]);
 	int i = 0;
+
 	while(i < nr_clientes){
 		pid_t pid = fork();
 
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]){
 		}
 		else if (pid == 0){
 
-			char c_fifoname[200] = "fc_";
+			char c_fifoname[200] = "/tmp/fc_";
 			char pid[50];
 			sprintf(pid, "%d", getpid());  
 			strcat(c_fifoname, pid);
@@ -137,18 +137,16 @@ int main(int argc, char *argv[]){
 
 			int fc_name = open(c_fifoname, O_RDONLY | O_NONBLOCK);
 
-			int fifomelhorbalcao = melhorbalcao(shm);
+			int indicebalcao = melhorbalcao(shm);
 			char bestb_fifoname[200] = "/tmp/fb_";
 			char pidb[60];
-			sprintf(pidb, "%d", shm->table[NM_FIFO][fifomelhorbalcao]);
+			sprintf(pidb, "%d", shm->table[NM_FIFO][indicebalcao]);
 			strcat(bestb_fifoname, pidb);
 			mkfifo(bestb_fifoname, 0660);
-			printf("vou escrever no fifo %s\n", bestb_fifoname);
+			
 
 			int bestb_name = open(bestb_fifoname, O_WRONLY);
 
-			
-											printf("\nbefore fork");
 
 			int length = strlen(c_fifoname) + 1;
 			write(bestb_name, c_fifoname, length);
@@ -156,6 +154,7 @@ int main(int argc, char *argv[]){
 
 			close(fc_name);
 			close(bestb_name);
+			exit(EXIT_SUCCESS);
 			
 		}
 

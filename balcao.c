@@ -49,7 +49,6 @@ Store_memory * create_shared_memory(char * shm_name, int shm_size)
 	int shmfd; 
 	int m_exst = 0;
 	Store_memory *shm; 
-                                                                    printf("In create memory");
 
 	//create the shared memory region 
 	shmfd = shm_open(shm_name,O_CREAT|O_RDWR|O_EXCL,0660); 
@@ -185,9 +184,7 @@ void *thr_func(void *content){
 	int start = time(NULL);
 	int elapsed_time = time(NULL) - start;
 
-	printf("Segundos passados: %d\n", elapsed_time);
 	
-    printf("O meu fifo chama-se %s\n", b_fifoname);
 
 	while(elapsed_time < membalcao->duracaoaberturabalcao){
 
@@ -196,7 +193,6 @@ void *thr_func(void *content){
 
 		while(readLine(f_name, str)){
             printf("A string = %s\n", str);
-            getc(stdin);
         }
 
 		elapsed_time = time(NULL)-start;
@@ -220,7 +216,7 @@ void *thr_func(void *content){
 }
 
 int main(int nrarg, char *path[]){ 
-	                                                               printf("\nstart of main");
+	                                                              
 
 	if(nrarg != 3){
 		printf("\nWrong number of arguments\n");
