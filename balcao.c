@@ -26,22 +26,30 @@ typedef struct {
 	pthread_cond_t  slots_cond; 
 	pthread_cond_t  items_cond; 
 	pthread_mutex_t slots_lock; 
-	pthread_mutex_t items_lock; 
+	pthread_mutex_t items_lock;
+	pthread_mutex_t mutex; 
 
 	int buffer[BUFSIZE]; 
 
 	int nrBalcoes;
 	int nrBalcoesAbertos;
 	time_t tempoaberturaloja;
-	int table[7][500];
+	double table[7][500];
 
 } Store_memory; 
 
 
 typedef struct {
-    char* nomeMem;
-    int duracaoaberturabalcao;
+	char* nomeMem;
+	int duracaoaberturabalcao;
 } Desk_m;
+
+
+typedef struct {
+	Store_memory* nomeMem;
+	int balcao_nr;
+	char str[300];
+} argsatendimento;
 
 //CREATES THE MEMORY
 Store_memory * create_shared_memory(char * shm_name, int shm_size) 
@@ -84,7 +92,8 @@ Store_memory * create_shared_memory(char * shm_name, int shm_size)
 	if(m_exst == 0){
 		shm->tempoaberturaloja = time(NULL); //opening time of the store is set to current
 		shm->nrBalcoes = 1;	//inicializes the number of desks 
-		shm->nrBalcoesAbertos = 1; //inicializes the number of open desks 
+		shm->nrBalcoesAbertos = 1; //inicializes the number of open desks
+		pthread_mutex_init(&shm->mutex, NULL); 
 	}
 	//if the memory already exists
 	else if(m_exst == 1){
@@ -100,22 +109,22 @@ void destroy_shared_memory(Store_memory *shm, int shm_size, char * nomeMem)
 { 
 
 	printf("\n\n\n\n\n\n\n");
-	printf("N_BALCAO\tN_TEMPO\tNDURACAO\tNOMEFIFO\tEMATEND\tJAATEND\tTEMPMEDIO");
+	printf("N_B\t\tT\t\tDUR\t\tFIFO\t\tEM_AT\t\tJA_AT\t\tTM");
 
-printf("\n");
-int i = 0; 
+	printf("\n");
+	int i = 0; 
 	
 	//creates the table
 	while(i < shm->nrBalcoes){
 
-		printf("%d\t\t%d\t\t%d\t%d\t\t%d\t%d\t%d\n",
-		shm->table[NR_BALCAO][i],
-		shm->table[NR_TEMPO][i],
-		shm->table[NR_DURACAO][i],
-		shm->table[NM_FIFO][i],
-		shm->table[NR_ATENDIMENTO][i],
-		shm->table[NR_JATEND][i],
-		shm->table[TEMPOMEDIO][i]);
+		printf("%f\t%f\t%f\t%f\t%f\t%f\t%f\n",
+			shm->table[NR_BALCAO][i],
+			shm->table[NR_TEMPO][i],
+			shm->table[NR_DURACAO][i],
+			shm->table[NM_FIFO][i],
+			shm->table[NR_ATENDIMENTO][i],
+			shm->table[NR_JATEND][i],
+			shm->table[TEMPOMEDIO][i]);
 		
 
 		i++;
@@ -143,6 +152,39 @@ int readLine(int fd, char *str){ //on fifo
 
 
 	return (n>0);
+}
+
+void *thr_atendimento(void *args){
+	char str[300];
+	Store_memory * shm = ((argsatendimento *) args)->nomeMem;
+	int blc = ((argsatendimento *) args)->balcao_nr;
+	strcpy(str, ((argsatendimento *) args)->str);
+	
+	pthread_mutex_lock(&shm->mutex);
+    double fila = shm->table[NR_ATENDIMENTO][blc];
+	pthread_mutex_unlock(&shm->mutex);
+
+	if(fila <= 10)
+		sleep(fila + 1);
+	else
+		sleep(10);
+	
+
+	mkfifo(str, 0660);
+
+	int e_msg = open(str, O_WRONLY);
+	char endmsg[] = "fim_atendimento";
+	
+	
+    pthread_mutex_lock(&shm->mutex);
+	shm->table[NR_ATENDIMENTO][blc]--;
+	shm->table[NR_JATEND][blc]++;
+	pthread_mutex_unlock(&shm->mutex);
+
+	write(e_msg, endmsg, sizeof(endmsg));
+
+	close(e_msg);
+	pthread_exit(NULL);
 }
 
 
@@ -184,39 +226,41 @@ void *thr_func(void *content){
 	int start = time(NULL);
 	int elapsed_time = time(NULL) - start;
 
-	
+
+	pthread_t atendimento;
 
 	while(elapsed_time < membalcao->duracaoaberturabalcao){
-
-		//printf("Segundos restantes: %d\n", elapsed_time);
+		
+		
 		char str[100] = "";
 
 		if(readLine(f_name, str)){
-			printf("Nome do cliente a ler %s\n", str);
-            if(shm->table[NR_ATENDIMENTO][blc] <= 10)
-            	sleep(shm->table[NR_ATENDIMENTO][blc]);
-            else
-            	sleep(10);
+			
+			argsatendimento * args = malloc(sizeof(argsatendimento));
+			args->nomeMem = shm;
+			args->balcao_nr = blc;
+			strcpy(args->str, str);
 
-            mkfifo(str, 0660);
+			
+			pthread_create(&atendimento, NULL, thr_atendimento, (void*) args); 
+			
 
-            int e_msg = open(str, O_WRONLY);
-            char endmsg[] = "fim_atendimento";
-            shm->table[NR_ATENDIMENTO][blc] = shm->table[NR_ATENDIMENTO][blc] - 1;
-	    shm->table[NR_JATEND][blc] = shm->table[NR_JATEND][blc] + 1;
-            write(e_msg, endmsg, sizeof(endmsg));
-
-            close(e_msg);
-        }
+		}
 
 		elapsed_time = time(NULL)-start;
-
 	}
 
-	   int atendidostotal = shm->table[NR_JATEND][blc];
-           int duracaob = membalcao->duracaoaberturabalcao;
-	   int tmedio = duracaob/atendidostotal;
-	   shm->table[TEMPOMEDIO][blc] = tmedio;
+	
+	time_t opening_time = time(NULL);
+	while(shm->table[NR_ATENDIMENTO][blc]){
+		pthread_join(atendimento, NULL);
+		if(time(NULL) - opening_time > 30) shm->table[NR_ATENDIMENTO][blc]--;
+	}
+
+	double atendidostotal = shm->table[NR_JATEND][blc];
+	double duracaob = membalcao->duracaoaberturabalcao;
+	double tmedio = duracaob/atendidostotal;
+	shm->table[TEMPOMEDIO][blc] = tmedio;
 
 
 	shm->table[NR_DURACAO][blc] = membalcao->duracaoaberturabalcao;
@@ -231,10 +275,12 @@ void *thr_func(void *content){
 	free(membalcao); //frees the memory
 	close(f_name);
 	pthread_exit(NULL); //closes the thread
+
+
 }
 
 int main(int nrarg, char *path[]){ 
-	                                                              
+
 
 	if(nrarg != 3){
 		printf("\nWrong number of arguments\n");
@@ -251,6 +297,8 @@ int main(int nrarg, char *path[]){
 	pthread_create(&tid, NULL, thr_func, (void*) sending); 
 
 	pthread_exit(NULL);
+
+	return 0;
 
 	
 }

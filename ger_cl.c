@@ -26,13 +26,14 @@ typedef struct {
 	pthread_cond_t  items_cond;
 	pthread_mutex_t slots_lock;
 	pthread_mutex_t items_lock;
+	pthread_mutex_t mutex; 
 
 	int buffer[BUFSIZE];
 
 	int nrBalcoes;
 	int nrBalcoesAbertos;
 	time_t tempoaberturaloja;
-	int table[7][500];
+	double table[7][500];
 
 } Store_memory;
 
@@ -59,8 +60,8 @@ Store_memory * get_shared_memory(char * shm_name, int shm_size)
 	shmfd = shm_open(shm_name,O_RDWR,0660); 
 
 	if(shmfd <= 0){
-			perror("ERROR in shm_open()");
-			exit(EXIT_FAILURE); 
+		perror("ERROR in shm_open()");
+		exit(EXIT_FAILURE); 
 	}
 	
 	//specify the size of the shared memory region 
@@ -107,7 +108,7 @@ int melhorbalcao(Store_memory *shm){
 
 int main(int argc, char *argv[]){
 
-																		setbuf(stdout, NULL);
+	
 	//checks the arguments
 	if(argc != 3){
 		printf("\nWrong number of arguments\n");
@@ -139,7 +140,7 @@ int main(int argc, char *argv[]){
 			int indicebalcao = melhorbalcao(shm);
 			char bestb_fifoname[200] = "/tmp/fb_";
 			char pidb[60];
-			sprintf(pidb, "%d", shm->table[NM_FIFO][indicebalcao]);
+			sprintf(pidb, "%d", (int) shm->table[NM_FIFO][indicebalcao]);
 			strcat(bestb_fifoname, pidb);
 			mkfifo(bestb_fifoname, 0660);
 			
@@ -149,7 +150,6 @@ int main(int argc, char *argv[]){
 
 			int length = strlen(c_fifoname) + 1;
 			write(bestb_name, c_fifoname, length);
-			printf("No cliente o nome do fifo é %s", c_fifoname);
 
 			int fc_name = open(c_fifoname, O_RDONLY);
 			char str[100];
