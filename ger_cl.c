@@ -159,8 +159,6 @@ int main(int argc, char *argv[]){
 				if(strcmp(str,"fim_atendimento") == 0)
 				{
 					printf("O cliente com pid %d foi notificado do fim de atendimento\n", getpid());
-					shm->table[NR_ATENDIMENTO][indicebalcao] = shm->table[NR_ATENDIMENTO][indicebalcao] - 1;
-					shm->table[NR_JATEND][indicebalcao] = shm->table[NR_JATEND][indicebalcao] +1;
 
 				}else{
 					printf("ERRO! Nao recebeu a notificacao de fim de atendimento\n");

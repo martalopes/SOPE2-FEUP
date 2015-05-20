@@ -165,7 +165,7 @@ void *thr_func(void *content){
 	printf("Nome fifo balcao: %s\n", b_fifoname);
 
 	printf("Name mem: %s\n", membalcao->nomeMem);
-	printf("Horas abertura do balcao: %d\n", membalcao->duracaoaberturabalcao);
+	printf("Duracao do balcao: %d\n", membalcao->duracaoaberturabalcao);
 	printf("Horas abertura da loja:");
 	printf("%s",ctime(&shm->tempoaberturaloja));
 	printf("Nr Balcoes: %d\n", shm->nrBalcoes);
@@ -203,7 +203,7 @@ void *thr_func(void *content){
             int e_msg = open(str, O_WRONLY);
             char endmsg[] = "fim_atendimento";
             shm->table[NR_ATENDIMENTO][blc] = shm->table[NR_ATENDIMENTO][blc] - 1;
-			shm->table[NR_JATEND][blc] = shm->table[NR_JATEND][blc] + 1;
+	    shm->table[NR_JATEND][blc] = shm->table[NR_JATEND][blc] + 1;
             write(e_msg, endmsg, sizeof(endmsg));
 
             close(e_msg);
@@ -213,6 +213,10 @@ void *thr_func(void *content){
 
 	}
 
+	   int atendidostotal = shm->table[NR_JATEND][blc];
+           int duracaob = membalcao->duracaoaberturabalcao;
+	   int tmedio = duracaob/atendidostotal;
+	   shm->table[TEMPOMEDIO][blc] = tmedio;
 
 
 	shm->table[NR_DURACAO][blc] = membalcao->duracaoaberturabalcao;
