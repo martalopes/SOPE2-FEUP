@@ -108,7 +108,7 @@ int i = 0;
 	//creates the table
 	while(i < shm->nrBalcoes){
 
-		printf("%d\t\t%d\t\t%d\t\t%d\t%d\t%d\t\t%d\n",
+		printf("%d\t\t%d\t\t%d\t%d\t\t%d\t%d\t%d\n",
 		shm->table[NR_BALCAO][i],
 		shm->table[NR_TEMPO][i],
 		shm->table[NR_DURACAO][i],
@@ -191,8 +191,22 @@ void *thr_func(void *content){
 		//printf("Segundos restantes: %d\n", elapsed_time);
 		char str[100] = "";
 
-		while(readLine(f_name, str)){
-            printf("A string = %s\n", str);
+		if(readLine(f_name, str)){
+			printf("Nome do cliente a ler %s\n", str);
+            if(shm->table[NR_ATENDIMENTO][blc] <= 10)
+            	sleep(shm->table[NR_ATENDIMENTO][blc]);
+            else
+            	sleep(10);
+
+            mkfifo(str, 0660);
+
+            int e_msg = open(str, O_WRONLY);
+            char endmsg[] = "fim_atendimento";
+            shm->table[NR_ATENDIMENTO][blc] = shm->table[NR_ATENDIMENTO][blc] - 1;
+			shm->table[NR_JATEND][blc] = shm->table[NR_JATEND][blc] + 1;
+            write(e_msg, endmsg, sizeof(endmsg));
+
+            close(e_msg);
         }
 
 		elapsed_time = time(NULL)-start;

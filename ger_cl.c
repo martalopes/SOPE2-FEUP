@@ -100,6 +100,7 @@ int melhorbalcao(Store_memory *shm){
 		i++;
 	}
 
+	shm->table[NR_ATENDIMENTO][n] = shm->table[NR_ATENDIMENTO][n] + 1;
 	return n;
 
 }
@@ -115,7 +116,6 @@ int main(int argc, char *argv[]){
 
 
 	int nr_clientes = atoi(argv[2]);
-	//initializes the shared memory
 	Store_memory *shm;
 	shm = get_shared_memory(argv[1], sizeof(Store_memory));
 	int i = 0;
@@ -135,7 +135,6 @@ int main(int argc, char *argv[]){
 			strcat(c_fifoname, pid);
 			mkfifo(c_fifoname, 0660);
 
-			int fc_name = open(c_fifoname, O_RDONLY | O_NONBLOCK);
 
 			int indicebalcao = melhorbalcao(shm);
 			char bestb_fifoname[200] = "/tmp/fb_";
@@ -151,6 +150,25 @@ int main(int argc, char *argv[]){
 			int length = strlen(c_fifoname) + 1;
 			write(bestb_name, c_fifoname, length);
 			printf("No cliente o nome do fifo é %s", c_fifoname);
+
+			int fc_name = open(c_fifoname, O_RDONLY);
+			char str[100];
+
+			while(readLine(fc_name, str)){
+
+				if(strcmp(str,"fim_atendimento") == 0)
+				{
+					printf("O cliente com pid %d foi notificado do fim de atendimento\n", getpid());
+					shm->table[NR_ATENDIMENTO][indicebalcao] = shm->table[NR_ATENDIMENTO][indicebalcao] - 1;
+					shm->table[NR_JATEND][indicebalcao] = shm->table[NR_JATEND][indicebalcao] +1;
+
+				}else{
+					printf("ERRO! Nao recebeu a notificacao de fim de atendimento\n");
+					exit(EXIT_FAILURE);
+				}
+
+			}
+
 
 			close(fc_name);
 			close(bestb_name);
