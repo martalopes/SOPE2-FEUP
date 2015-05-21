@@ -87,6 +87,7 @@ int melhorbalcao(Store_memory *shm){
 	int n = -1;
 	int minimo; 
 
+	pthread_mutex_lock(&shm->mutex);
 	while(i < shm->nrBalcoesAbertos){
 
 		if(n == -1){
@@ -100,8 +101,11 @@ int melhorbalcao(Store_memory *shm){
 		}
 		i++;
 	}
+	pthread_mutex_unlock(&shm->mutex);
 
+	pthread_mutex_lock(&shm->mutex);
 	shm->table[NR_ATENDIMENTO][n] = shm->table[NR_ATENDIMENTO][n] + 1;
+	pthread_mutex_unlock(&shm->mutex);
 	return n;
 
 }
@@ -140,7 +144,9 @@ int main(int argc, char *argv[]){
 			int indicebalcao = melhorbalcao(shm);
 			char bestb_fifoname[200] = "/tmp/fb_";
 			char pidb[60];
+			pthread_mutex_lock(&shm->mutex);
 			sprintf(pidb, "%d", (int) shm->table[NM_FIFO][indicebalcao]);
+			pthread_mutex_unlock(&shm->mutex);
 			strcat(bestb_fifoname, pidb);
 			mkfifo(bestb_fifoname, 0660);
 			
