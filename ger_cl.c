@@ -144,9 +144,18 @@ int main(int argc, char *argv[]){
 			int indicebalcao = melhorbalcao(shm);
 			char bestb_fifoname[200] = "/tmp/fb_";
 			char pidb[60];
-			pthread_mutex_lock(&shm->mutex);
+
+			while(pthread_mutex_trylock(&shm->mutex))
+			{
+				continue;
+				
+			}	
+
 			sprintf(pidb, "%d", (int) shm->table[NM_FIFO][indicebalcao]);
+
 			pthread_mutex_unlock(&shm->mutex);
+
+
 			strcat(bestb_fifoname, pidb);
 			mkfifo(bestb_fifoname, 0660);
 			

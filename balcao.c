@@ -159,10 +159,16 @@ void *thr_atendimento(void *args){
 	Store_memory * shm = ((argsatendimento *) args)->nomeMem;
 	int blc = ((argsatendimento *) args)->balcao_nr;
 	strcpy(str, ((argsatendimento *) args)->str);
+
+	while(pthread_mutex_trylock(&shm->mutex))
+	{
+		continue;
+		
+	}	
 	
-	pthread_mutex_lock(&shm->mutex);
-    double fila = shm->table[NR_ATENDIMENTO][blc];
+	double fila = shm->table[NR_ATENDIMENTO][blc];
 	pthread_mutex_unlock(&shm->mutex);
+	
 
 	if(fila <= 10)
 		sleep(fila + 1);
@@ -176,10 +182,17 @@ void *thr_atendimento(void *args){
 	char endmsg[] = "fim_atendimento";
 	
 	
-    pthread_mutex_lock(&shm->mutex);
+	while(pthread_mutex_trylock(&shm->mutex))
+	{
+		continue;
+		
+	}	
+	
 	shm->table[NR_ATENDIMENTO][blc]--;
 	shm->table[NR_JATEND][blc]++;
+
 	pthread_mutex_unlock(&shm->mutex);
+	
 
 	write(e_msg, endmsg, sizeof(endmsg));
 
