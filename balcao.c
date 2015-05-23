@@ -31,6 +31,9 @@ typedef struct {
 
 	int buffer[BUFSIZE]; 
 
+	FILE * log_file;
+	char log_name[200];
+
 	int nrBalcoes;
 	int nrBalcoesAbertos;
 	time_t tempoaberturaloja;
@@ -51,20 +54,70 @@ typedef struct {
 	char str[300];
 } argsatendimento;
 
+void fileInit(Store_memory* shm){
+
+	shm->log_file = fopen(shm->log_name, "w");
+
+	fprintf(shm->log_file, "Ficheiro log \n\n");
+	fprintf(shm->log_file, " quando\t\t    | quem\t | balcao |  o_que\t\t| canal_criado/usado\n");
+	fprintf(shm->log_file, "----------------------------------------------------------------------------------------\n");
+
+	fclose(shm->log_file);
+
+}
+
+/*void writeLogEntry(Store_memory* shm, int nr_balcao, char* event, int current_pid){
+
+	shm->log_file = fopen(shm->log_name, "a");
+
+	time_t current_time = time(NULL);
+	struct tm* tm_info;
+	char buffer[26];
+    tm_info = localtime(&current_time);
+    strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+    char channel[200];
+    if(current_pid != 0){
+    sprintf(channel, "fb_%d", current_pid);
+	}else sprintf(channel , "-");
+
+	fprintf(shm->log_file, "%s | Balcao\t | %d\t  | %s\t| %s\n", buffer, nr_balcao, event, channel);
+
+	fclose(shm->log_file);
+
+}*/
+
+	void writeLogEntryCharPid(Store_memory* shm, int nr_balcao, char* event, char* current_pid){
+
+		shm->log_file = fopen(shm->log_name, "a");
+
+		time_t current_time = time(NULL);
+		struct tm* tm_info;
+		char buffer[26];
+		tm_info = localtime(&current_time);
+		strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+		fprintf(shm->log_file, "%s | Balcao\t | %d\t  | %s\t| %s\n", buffer, nr_balcao, event, current_pid);
+
+		fclose(shm->log_file);
+
+	}
+
+
 //CREATES THE MEMORY
-Store_memory * create_shared_memory(char * shm_name, int shm_size) 
-{ 
-	int shmfd; 
-	int m_exst = 0;
-	Store_memory *shm; 
+	Store_memory * create_shared_memory(char * shm_name, int shm_size) 
+	{ 
+		int shmfd; 
+		int m_exst = 0;
+		Store_memory *shm; 
 
 	//create the shared memory region 
-	shmfd = shm_open(shm_name,O_CREAT|O_RDWR|O_EXCL,0660); 
+		shmfd = shm_open(shm_name,O_CREAT|O_RDWR|O_EXCL,0660); 
 
-	if(shmfd<0){ 
-		shmfd = shm_open(shm_name,O_RDWR,0660);
-		
-		
+		if(shmfd<0){ 
+			shmfd = shm_open(shm_name,O_RDWR,0660);
+
+
 		if(shmfd <= 0){ //if the memory does not exist but it fails
 			m_exst = -1;
 			perror("ERROR in shm_open()");
@@ -93,7 +146,21 @@ Store_memory * create_shared_memory(char * shm_name, int shm_size)
 		shm->tempoaberturaloja = time(NULL); //opening time of the store is set to current
 		shm->nrBalcoes = 1;	//inicializes the number of desks 
 		shm->nrBalcoesAbertos = 1; //inicializes the number of open desks
+		
+		char* log_name = malloc(sizeof(char) * 200);
+		strcpy(log_name, shm_name);
+		log_name++;
+		strcat(log_name, ".log");
+		strcpy (shm->log_name, log_name);
+		
 		pthread_mutex_init(&shm->mutex, NULL); 
+
+		log_name--;
+		free(log_name);
+
+		fileInit(shm);
+		writeLogEntryCharPid(shm, 1, " inicia_mempart", "0");
+
 	}
 	//if the memory already exists
 	else if(m_exst == 1){
@@ -160,12 +227,23 @@ void *thr_atendimento(void *args){
 	int blc = ((argsatendimento *) args)->balcao_nr;
 	strcpy(str, ((argsatendimento *) args)->str);
 
+	char* newstr = malloc(sizeof(char) * 50);
+	char* newstr2 = malloc(sizeof(char) * 50);
+	strcpy(newstr, str);
+	newstr = newstr + 5;
+	strcpy(newstr2, newstr);
+
+	writeLogEntryCharPid(shm, 1, "inicia_atend_cli", newstr);
+
+	newstr = newstr -5;
+	free(newstr);
+
 	while(pthread_mutex_trylock(&shm->mutex))
 	{
 		continue;
-		
+
 	}	
-	
+
 	double fila = shm->table[NR_ATENDIMENTO][blc];
 	pthread_mutex_unlock(&shm->mutex);
 	
@@ -178,14 +256,16 @@ void *thr_atendimento(void *args){
 
 	mkfifo(str, 0660);
 
+
 	int e_msg = open(str, O_WRONLY);
 	char endmsg[] = "fim_atendimento";
 	
+
 	
 	while(pthread_mutex_trylock(&shm->mutex))
 	{
 		continue;
-		
+
 	}	
 	
 	shm->table[NR_ATENDIMENTO][blc]--;
@@ -193,8 +273,13 @@ void *thr_atendimento(void *args){
 
 	pthread_mutex_unlock(&shm->mutex);
 	
+	writeLogEntryCharPid(shm, 1, "fim_atend_cli", newstr2);
+
+	free(newstr2);
+
 
 	write(e_msg, endmsg, sizeof(endmsg));
+	
 
 	close(e_msg);
 	pthread_exit(NULL);
@@ -206,7 +291,8 @@ void *thr_func(void *content){
 	Desk_m * membalcao = (Desk_m*) content;
 	
 	Store_memory *shm = create_shared_memory(membalcao->nomeMem, sizeof(Store_memory));
-	
+
+
 	char b_fifoname[200] = "/tmp/fb_";
 	char pid[50];
 	sprintf(pid, "%d", getpid());  //gets process id 
@@ -239,6 +325,14 @@ void *thr_func(void *content){
 	int start = time(NULL);
 	int elapsed_time = time(NULL) - start;
 
+	char pidchar[300];
+	char nrpid[300];
+	strcpy(pidchar, "fb_");
+	sprintf(nrpid, "%d", getpid() );
+	strcat(pidchar, nrpid);
+
+
+	writeLogEntryCharPid(shm, blc+1, "cria_linh_mempart", pidchar);
 
 	pthread_t atendimento;
 
@@ -279,8 +373,18 @@ void *thr_func(void *content){
 	shm->table[NR_DURACAO][blc] = membalcao->duracaoaberturabalcao;
 	printf("Balcoes tempo: %d", membalcao->duracaoaberturabalcao);
 
-	if(shm->nrBalcoesAbertos == 1)
+	char pidchar2[300];
+	char nrpid2[300];
+	strcpy(pidchar2, "fb_");
+	sprintf(nrpid2, "%d", getpid() );
+	strcat(pidchar2, nrpid2);
+
+	writeLogEntryCharPid(shm, blc+1, "fecha_balcao", pidchar2);
+	if(shm->nrBalcoesAbertos == 0){
+		writeLogEntryCharPid(shm, blc + 1, "fecha_loja", pidchar2);
 		destroy_shared_memory(shm, sizeof(Store_memory), membalcao->nomeMem);
+	}
+
 	else
 		shm->nrBalcoesAbertos--;
 

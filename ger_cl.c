@@ -30,12 +30,36 @@ typedef struct {
 
 	int buffer[BUFSIZE];
 
+	FILE * log_file;
+	char log_name[200];
 	int nrBalcoes;
 	int nrBalcoesAbertos;
 	time_t tempoaberturaloja;
 	double table[7][500];
 
 } Store_memory;
+
+void writeLogEntry(Store_memory* shm, int nr, char* event, int current_pid){
+
+	shm->log_file = fopen(shm->log_name, "a");
+
+	time_t current_time = time(NULL);
+	struct tm* tm_info;
+	char buffer[26];
+	tm_info = localtime(&current_time);
+	strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+	char channel[200];
+	if(current_pid != 0){
+		sprintf(channel, "fc_%d", current_pid);
+	}else sprintf(channel , "-");
+
+
+	fprintf(shm->log_file, "%s | Cliente\t | %d\t  | %s\t| %s\n", buffer, nr, event, channel);
+
+	fclose(shm->log_file);
+
+}
 
 //reads a line from the fifo
 int readLine(int fd, char *str){
@@ -87,7 +111,11 @@ int melhorbalcao(Store_memory *shm){
 	int n = -1;
 	int minimo; 
 
-	pthread_mutex_lock(&shm->mutex);
+	while(pthread_mutex_trylock(&shm->mutex))
+	{
+		continue;
+
+	}	
 	while(i < shm->nrBalcoesAbertos){
 
 		if(n == -1){
@@ -103,9 +131,14 @@ int melhorbalcao(Store_memory *shm){
 	}
 	pthread_mutex_unlock(&shm->mutex);
 
-	pthread_mutex_lock(&shm->mutex);
+	while(pthread_mutex_trylock(&shm->mutex))
+	{
+		continue;
+
+	}	
 	shm->table[NR_ATENDIMENTO][n] = shm->table[NR_ATENDIMENTO][n] + 1;
 	pthread_mutex_unlock(&shm->mutex);
+
 	return n;
 
 }
@@ -137,6 +170,7 @@ int main(int argc, char *argv[]){
 			char c_fifoname[200] = "/tmp/fc_";
 			char pid[50];
 			sprintf(pid, "%d", getpid());  
+			int cpid = getpid();
 			strcat(c_fifoname, pid);
 			mkfifo(c_fifoname, 0660);
 
@@ -144,6 +178,9 @@ int main(int argc, char *argv[]){
 			int indicebalcao = melhorbalcao(shm);
 			char bestb_fifoname[200] = "/tmp/fb_";
 			char pidb[60];
+
+			writeLogEntry(shm, indicebalcao+1, "pede_atendimento", cpid);
+
 
 			while(pthread_mutex_trylock(&shm->mutex))
 			{
@@ -172,7 +209,7 @@ int main(int argc, char *argv[]){
 			while(readLine(fc_name, str)){
 
 				if(strcmp(str,"fim_atendimento") == 0)
-				{
+				{	writeLogEntry(shm, indicebalcao+1, "fim_atendimento", getpid());
 					printf("O cliente com pid %d foi notificado do fim de atendimento\n", getpid());
 
 				}else{
