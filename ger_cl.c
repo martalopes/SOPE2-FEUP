@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <string.h>
 
@@ -55,7 +56,7 @@ void writeLogEntry(Store_memory* shm, int nr, char* event, int current_pid){
 	}else sprintf(channel , "-");
 
 
-	fprintf(shm->log_file, "%s | Cliente\t | %d\t  | %s\t| %s\n", buffer, nr, event, channel);
+	fprintf(shm->log_file, "%-22s | Cliente  | %-5d  | %-22s | %-10s \n", buffer, nr, event, channel);
 
 	fclose(shm->log_file);
 
@@ -151,8 +152,8 @@ int main(int argc, char *argv[]){
 		printf("\nWrong number of arguments\n");
 		return 1;
 	}
-
-
+	
+	
 	int nr_clientes = atoi(argv[2]);
 	Store_memory *shm;
 	shm = get_shared_memory(argv[1], sizeof(Store_memory));
@@ -160,6 +161,7 @@ int main(int argc, char *argv[]){
 
 	while(i < nr_clientes){
 		pid_t pid = fork();
+		
 
 		if(pid < 0){
 			perror("Error in fork");
@@ -210,26 +212,29 @@ int main(int argc, char *argv[]){
 			while(readLine(fc_name, str)){
 
 				if(strcmp(str,"fim_atendimento") == 0)
-				{	writeLogEntry(shm, indicebalcao+1, "fim_atendimento", getpid());
-					printf("O cliente com pid %d foi notificado do fim de atendimento\n", getpid());
+					{	writeLogEntry(shm, indicebalcao+1, "fim_atendimento", getpid());
+				//printf("O cliente com pid %d foi notificado do fim de atendimento\n", getpid());
 
-				}else{
-					printf("ERRO! Nao recebeu a notificacao de fim de atendimento\n");
-					exit(EXIT_FAILURE);
-				}
-
+			}else{
+				printf("ERRO! Nao recebeu a notificacao de fim de atendimento\n");
+				exit(EXIT_FAILURE);
 			}
-
-
-			close(fc_name);
-			close(bestb_name);
-			exit(EXIT_SUCCESS);
-			
 		}
 
-		i++;
-	}
+		close(fc_name);
+		close(bestb_name);
+		exit(EXIT_SUCCESS);
 
-	return 0;
+	}
+	
+
+
+
+	i++;
+}
+
+
+
+return 0;
 
 }

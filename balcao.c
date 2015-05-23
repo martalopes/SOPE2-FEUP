@@ -59,33 +59,12 @@ void fileInit(Store_memory* shm){
 	shm->log_file = fopen(shm->log_name, "w");
 
 	fprintf(shm->log_file, "Ficheiro log \n\n");
-	fprintf(shm->log_file, " quando\t\t    | quem\t | balcao |  o_que\t\t| canal_criado/usado\n");
+	fprintf(shm->log_file, " quando                | quem     | balcao |  o_que                 | canal_criado/usado\n");
 	fprintf(shm->log_file, "----------------------------------------------------------------------------------------\n");
 
 	fclose(shm->log_file);
 
 }
-
-/*void writeLogEntry(Store_memory* shm, int nr_balcao, char* event, int current_pid){
-
-	shm->log_file = fopen(shm->log_name, "a");
-
-	time_t current_time = time(NULL);
-	struct tm* tm_info;
-	char buffer[26];
-    tm_info = localtime(&current_time);
-    strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
-
-    char channel[200];
-    if(current_pid != 0){
-    sprintf(channel, "fb_%d", current_pid);
-	}else sprintf(channel , "-");
-
-	fprintf(shm->log_file, "%s | Balcao\t | %d\t  | %s\t| %s\n", buffer, nr_balcao, event, channel);
-
-	fclose(shm->log_file);
-
-}*/
 
 	void writeLogEntryCharPid(FILE* file, char* filename, int nr_balcao, char* event, char* current_pid){
 
@@ -97,7 +76,7 @@ void fileInit(Store_memory* shm){
 		tm_info = localtime(&current_time);
 		strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
 
-		fprintf(file, "%s | Balcao\t | %d\t  | %s\t| %s\n", buffer, nr_balcao, event, current_pid);
+		fprintf(file, "%-22s | Balcao   | %-5d  | %-23s| %-10s \n", buffer, nr_balcao, event, current_pid);
 
 		fclose(file);
 
@@ -299,6 +278,7 @@ void *thr_func(void *content){
 	strcat(b_fifoname, pid);	//completes name of the fifo with the pid
 	mkfifo(b_fifoname, 0660);	//creates the fifo
 
+	printf("Balcao nr %d aberto em: %s", shm->nrBalcoes, ctime(&shm->tempoaberturaloja));
 	shm->table[NR_BALCAO][shm->nrBalcoes-1] = shm->nrBalcoes;
 	shm->table[NR_TEMPO][shm->nrBalcoes-1] = time(NULL) - shm->tempoaberturaloja;
 	shm->table[NR_DURACAO][shm->nrBalcoes-1] = -1; //-1 while it's open, when the desk closes it's changed
@@ -358,7 +338,7 @@ void *thr_func(void *content){
 
 
 	shm->table[NR_DURACAO][blc] = membalcao->duracaoaberturabalcao;
-	printf("Balcoes tempo: %d", membalcao->duracaoaberturabalcao);
+	printf("Duracao do balcao: %d", membalcao->duracaoaberturabalcao);
 
 	char pidchar2[300];
 	char nrpid2[300];
@@ -372,7 +352,7 @@ void *thr_func(void *content){
 
 
 	if(shm->nrBalcoesAbertos == 1){
-		writeLogEntryCharPid(shm->log_file, shm->log_name, blc + 1, "fecha_loja \t", pidchar2);
+		writeLogEntryCharPid(shm->log_file, shm->log_name, blc + 1, "fecha_loja ", pidchar2);
 		destroy_shared_memory(shm, sizeof(Store_memory), membalcao->nomeMem);
 	}
 
