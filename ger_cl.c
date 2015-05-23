@@ -205,6 +205,7 @@ int main(int argc, char *argv[]){
 
 			int fc_name = open(c_fifoname, O_RDONLY);
 			char str[100];
+			
 
 			while(readLine(fc_name, str)){
 

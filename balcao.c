@@ -87,9 +87,9 @@ void fileInit(Store_memory* shm){
 
 }*/
 
-	void writeLogEntryCharPid(Store_memory* shm, int nr_balcao, char* event, char* current_pid){
+	void writeLogEntryCharPid(FILE* file, char* filename, int nr_balcao, char* event, char* current_pid){
 
-		shm->log_file = fopen(shm->log_name, "a");
+		file = fopen(filename, "a");
 
 		time_t current_time = time(NULL);
 		struct tm* tm_info;
@@ -97,9 +97,9 @@ void fileInit(Store_memory* shm){
 		tm_info = localtime(&current_time);
 		strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
 
-		fprintf(shm->log_file, "%s | Balcao\t | %d\t  | %s\t| %s\n", buffer, nr_balcao, event, current_pid);
+		fprintf(file, "%s | Balcao\t | %d\t  | %s\t| %s\n", buffer, nr_balcao, event, current_pid);
 
-		fclose(shm->log_file);
+		fclose(file);
 
 	}
 
@@ -159,7 +159,7 @@ void fileInit(Store_memory* shm){
 		free(log_name);
 
 		fileInit(shm);
-		writeLogEntryCharPid(shm, 1, " inicia_mempart", "0");
+		writeLogEntryCharPid(shm->log_file, shm->log_name, 1, " inicia_mempart", "0");
 
 	}
 	//if the memory already exists
@@ -233,7 +233,7 @@ void *thr_atendimento(void *args){
 	newstr = newstr + 5;
 	strcpy(newstr2, newstr);
 
-	writeLogEntryCharPid(shm, 1, "inicia_atend_cli", newstr);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "inicia_atend_cli", newstr);
 
 	newstr = newstr -5;
 	free(newstr);
@@ -273,7 +273,7 @@ void *thr_atendimento(void *args){
 
 	pthread_mutex_unlock(&shm->mutex);
 	
-	writeLogEntryCharPid(shm, 1, "fim_atend_cli", newstr2);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "fim_atend_cli", newstr2);
 
 	free(newstr2);
 
@@ -299,19 +299,6 @@ void *thr_func(void *content){
 	strcat(b_fifoname, pid);	//completes name of the fifo with the pid
 	mkfifo(b_fifoname, 0660);	//creates the fifo
 
-	int f_name = open(b_fifoname, O_RDONLY | O_NONBLOCK);
-
-//PRINTS PARA APAGAR
-	printf("Pid nr:%d\n", getpid()); 
-	printf("Nome fifo balcao: %s\n", b_fifoname);
-
-	printf("Name mem: %s\n", membalcao->nomeMem);
-	printf("Duracao do balcao: %d\n", membalcao->duracaoaberturabalcao);
-	printf("Horas abertura da loja:");
-	printf("%s",ctime(&shm->tempoaberturaloja));
-	printf("Nr Balcoes: %d\n", shm->nrBalcoes);
-//-------------------
-
 	shm->table[NR_BALCAO][shm->nrBalcoes-1] = shm->nrBalcoes;
 	shm->table[NR_TEMPO][shm->nrBalcoes-1] = time(NULL) - shm->tempoaberturaloja;
 	shm->table[NR_DURACAO][shm->nrBalcoes-1] = -1; //-1 while it's open, when the desk closes it's changed
@@ -332,7 +319,7 @@ void *thr_func(void *content){
 	strcat(pidchar, nrpid);
 
 
-	writeLogEntryCharPid(shm, blc+1, "cria_linh_mempart", pidchar);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "cria_linh_mempart", pidchar);
 
 	pthread_t atendimento;
 
@@ -379,9 +366,13 @@ void *thr_func(void *content){
 	sprintf(nrpid2, "%d", getpid() );
 	strcat(pidchar2, nrpid2);
 
-	writeLogEntryCharPid(shm, blc+1, "fecha_balcao", pidchar2);
-	if(shm->nrBalcoesAbertos == 0){
-		writeLogEntryCharPid(shm, blc + 1, "fecha_loja", pidchar2);
+
+
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "fecha_balcao", pidchar2);
+
+
+	if(shm->nrBalcoesAbertos == 1){
+		writeLogEntryCharPid(shm->log_file, shm->log_name, blc + 1, "fecha_loja \t", pidchar2);
 		destroy_shared_memory(shm, sizeof(Store_memory), membalcao->nomeMem);
 	}
 
