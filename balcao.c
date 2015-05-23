@@ -307,7 +307,7 @@ void *thr_func(void *content){
 	shm->table[NR_JATEND][shm->nrBalcoes-1]= 0;		//starts counting the number of clients already assisted
 	shm->table[TEMPOMEDIO][shm->nrBalcoes-1]= 0;	//starts counting the average assistance time
 
-
+	int f_name = open(b_fifoname, O_RDONLY | O_NONBLOCK);
 	int blc = shm->nrBalcoes -1 ;
 	int start = time(NULL);
 	int elapsed_time = time(NULL) - start;
