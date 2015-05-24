@@ -39,62 +39,65 @@ typedef struct {
 	time_t tempoaberturaloja;
 	double table[7][500];
 
-} Store_memory; 
+} Store_memory; 	//shared memory
 
 
 typedef struct {
 	char* nomeMem;
 	int duracaoaberturabalcao;
-} Desk_m;
+} Desk_m;			//desk information
 
 
 typedef struct {
 	Store_memory* nomeMem;
 	int balcao_nr;
 	char str[300];
-} argsatendimento;
+} argsatendimento;	//information for the treatment of the clients
 
-void fileInit(Store_memory* shm){
+void fileInit(Store_memory* shm){ //inicializes log file
 
-	shm->log_file = fopen(shm->log_name, "w");
+	shm->log_file = fopen(shm->log_name, "w");	//sets log file name
 
-	fprintf(shm->log_file, "Ficheiro log \n\n");
+	// Writes the beggining of the table on the log file to organize the information
+	fprintf(shm->log_file, "Ficheiro log \n\n");		
 	fprintf(shm->log_file, " quando                | quem     | balcao |  o_que                 | canal_criado/usado\n");
 	fprintf(shm->log_file, "----------------------------------------------------------------------------------------\n");
+	//------------------------------------------------------------------
 
-	fclose(shm->log_file);
+	fclose(shm->log_file);	//closes file
+}
+
+void writeLogEntryCharPid(FILE* file, char* filename, int nr_balcao, char* event, char* current_pid){  //function to facilitate the writing in the log file of all information
+
+	file = fopen(filename, "a");  //opens log file
+
+	// gets current time of the event
+	time_t current_time = time(NULL);  
+	struct tm* tm_info;	
+	char buffer[26];
+	tm_info = localtime(&current_time); 
+	strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+	//---------------
+
+	fprintf(file, "%-22s | Balcao   | %-5d  | %-23s| %-10s \n", buffer, nr_balcao, event, current_pid); //writes on log file, when the event occurs, where, in which desk, what was the event and which channel was used
+
+	fclose(file); //closes file
 
 }
 
-	void writeLogEntryCharPid(FILE* file, char* filename, int nr_balcao, char* event, char* current_pid){
-
-		file = fopen(filename, "a");
-
-		time_t current_time = time(NULL);
-		struct tm* tm_info;
-		char buffer[26];
-		tm_info = localtime(&current_time);
-		strftime(buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
-
-		fprintf(file, "%-22s | Balcao   | %-5d  | %-23s| %-10s \n", buffer, nr_balcao, event, current_pid);
-
-		fclose(file);
-
-	}
-
 
 //CREATES THE MEMORY
-	Store_memory * create_shared_memory(char * shm_name, int shm_size) 
-	{ 
-		int shmfd; 
-		int m_exst = 0;
-		Store_memory *shm; 
+Store_memory * create_shared_memory(char * shm_name, int shm_size) 
+{ 
+	int shmfd; 
+	int m_exst = 0;
+	Store_memory *shm; 
 
 	//create the shared memory region 
-		shmfd = shm_open(shm_name,O_CREAT|O_RDWR|O_EXCL,0660); 
+	shmfd = shm_open(shm_name,O_CREAT|O_RDWR|O_EXCL,0660); 
 
-		if(shmfd<0){ 
-			shmfd = shm_open(shm_name,O_RDWR,0660);
+	if(shmfd<0){ 
+		shmfd = shm_open(shm_name,O_RDWR,0660);
 
 
 		if(shmfd <= 0){ //if the memory does not exist but it fails
@@ -135,10 +138,10 @@ void fileInit(Store_memory* shm){
 		pthread_mutex_init(&shm->mutex, NULL); 
 
 		log_name--;
-		free(log_name);
+		free(log_name); //frees memory
 
 		fileInit(shm);
-		writeLogEntryCharPid(shm->log_file, shm->log_name, 1, " inicia_mempart", "0");
+		writeLogEntryCharPid(shm->log_file, shm->log_name, 1, " inicia_mempart", "0"); //writes on log file the event "inicia memoria partilhada";
 
 	}
 	//if the memory already exists
@@ -176,8 +179,8 @@ void destroy_shared_memory(Store_memory *shm, int shm_size, char * nomeMem)
 		i++;
 	}
 
-
-	if(munmap(shm,shm_size) < 0){ 
+	//CHECKS FOR ERRORS
+	if(munmap(shm,shm_size) < 0){  
 		perror("Failure in munmap()"); 
 		exit(EXIT_FAILURE); 
 	} 
@@ -186,6 +189,7 @@ void destroy_shared_memory(Store_memory *shm, int shm_size, char * nomeMem)
 		perror("Failure in shm_unlink()"); 
 		exit(EXIT_FAILURE); 
 	} 
+	//-----------------
 } 
 
 int readLine(int fd, char *str){ //on fifo
@@ -200,34 +204,39 @@ int readLine(int fd, char *str){ //on fifo
 	return (n>0);
 }
 
+
+//THREAD USED FOR TREATING ALL CLIENTS
 void *thr_atendimento(void *args){
 	char str[300];
-	Store_memory * shm = ((argsatendimento *) args)->nomeMem;
-	int blc = ((argsatendimento *) args)->balcao_nr;
-	strcpy(str, ((argsatendimento *) args)->str);
+	Store_memory * shm = ((argsatendimento *) args)->nomeMem;  //gets the name of the memory that is going to be used
+	int blc = ((argsatendimento *) args)->balcao_nr;		  //gets the number of the desk where the client is going to be send
+	strcpy(str, ((argsatendimento *) args)->str);			//gets information about the client
 
-	char* newstr = malloc(sizeof(char) * 50);
+	//Gets channel used in this event for writing to log file
+	char* newstr = malloc(sizeof(char) * 50);  
 	char* newstr2 = malloc(sizeof(char) * 50);
 	strcpy(newstr, str);
 	newstr = newstr + 5;
 	strcpy(newstr2, newstr);
+	//------------------------
 
-	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "inicia_atend_cli", newstr);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "inicia_atend_cli", newstr); //writes on log file the event "inicia atendimento do cliente";
 
 	newstr = newstr -5;
-	free(newstr);
+	free(newstr); //frees memory
 
-	while(pthread_mutex_trylock(&shm->mutex))
+	while(pthread_mutex_trylock(&shm->mutex))  
 	{
 		continue;
 
 	}	
 
-	double fila = shm->table[NR_ATENDIMENTO][blc];
+	double fila = shm->table[NR_ATENDIMENTO][blc];  //gets number of people in line
+
 	pthread_mutex_unlock(&shm->mutex);
 	
-
-	if(fila <= 10)
+	//makes the client wait x seconds depending on the number of people in line but never more then 10 secs
+	if(fila <= 10)  
 		sleep(fila + 1);
 	else
 		sleep(10);
@@ -236,8 +245,8 @@ void *thr_atendimento(void *args){
 	mkfifo(str, 0660);
 
 
-	int e_msg = open(str, O_WRONLY);
-	char endmsg[] = "fim_atendimento";
+	int e_msg = open(str, O_WRONLY);  
+	char endmsg[] = "fim_atendimento";  //creates the msg to send the client that he has been attended 
 	
 
 	
@@ -246,26 +255,27 @@ void *thr_atendimento(void *args){
 		continue;
 
 	}	
-	
-	shm->table[NR_ATENDIMENTO][blc]--;
+	//updates the number of people in line and people already treated
+	shm->table[NR_ATENDIMENTO][blc]--;  
 	shm->table[NR_JATEND][blc]++;
+	//-----------------
 
 	pthread_mutex_unlock(&shm->mutex);
 	
-	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "fim_atend_cli", newstr2);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "fim_atend_cli", newstr2); //writes on log file the event "fim atendimento do cliente";
 
-	free(newstr2);
+	free(newstr2); //frees memory
 
 
-	write(e_msg, endmsg, sizeof(endmsg));
+	write(e_msg, endmsg, sizeof(endmsg)); //sends message to the client 
 	
 
 	close(e_msg);
+
 	pthread_exit(NULL);
 }
 
-
-//desk thread
+//DESK THREAD
 void *thr_func(void *content){
 	Desk_m * membalcao = (Desk_m*) content;
 	
@@ -289,55 +299,60 @@ void *thr_func(void *content){
 
 	int f_name = open(b_fifoname, O_RDONLY | O_NONBLOCK);
 	int blc = shm->nrBalcoes -1 ;
-	int start = time(NULL);
-	int elapsed_time = time(NULL) - start;
+	
 
+	//Gets the channel being used in the events for writing on log file
 	char pidchar[300];
 	char nrpid[300];
 	strcpy(pidchar, "fb_");
 	sprintf(nrpid, "%d", getpid() );
 	strcat(pidchar, nrpid);
+	//-----------------------
 
 
-	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "cria_linh_mempart", pidchar);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "cria_linh_mempart", pidchar); //writes on log file the event "cria linha da memoria partilhada";
+
+
 
 	pthread_t atendimento;
+	int start = time(NULL);
+	int elapsed_time = time(NULL) - start;
 
-	while(elapsed_time < membalcao->duracaoaberturabalcao){
+	while(elapsed_time < membalcao->duracaoaberturabalcao){  //while the desk is still open
 		
 		
 		char str[100] = "";
 
-		if(readLine(f_name, str)){
+		if(readLine(f_name, str)){			
 			
 			argsatendimento * args = malloc(sizeof(argsatendimento));
 			args->nomeMem = shm;
 			args->balcao_nr = blc;
-			strcpy(args->str, str);
+			strcpy(args->str, str); //gets the client 
 
 			
-			pthread_create(&atendimento, NULL, thr_atendimento, (void*) args); 
+			pthread_create(&atendimento, NULL, thr_atendimento, (void*) args); //sends client to thr_atendimento 
 			
 
 		}
 
-		elapsed_time = time(NULL)-start;
+		elapsed_time = time(NULL)-start; //updates elapsed time
 	}
 
 	
 	time_t opening_time = time(NULL);
 	while(shm->table[NR_ATENDIMENTO][blc]){
-		pthread_join(atendimento, NULL);
-		if(time(NULL) - opening_time > 30) shm->table[NR_ATENDIMENTO][blc]--;
+		pthread_join(atendimento, NULL); //joins all the threads of the clients and waits for all of them to finish
+		if(time(NULL) - opening_time > 30) shm->table[NR_ATENDIMENTO][blc]--; //in case that the program crashes waits 30 seconds and then ignores that action
 	}
 
-	double atendidostotal = shm->table[NR_JATEND][blc];
+	//updates info
+	double atendidostotal = shm->table[NR_JATEND][blc];    
 	double duracaob = membalcao->duracaoaberturabalcao;
 	double tmedio = duracaob/atendidostotal;
 	shm->table[TEMPOMEDIO][blc] = tmedio;
-
-
 	shm->table[NR_DURACAO][blc] = membalcao->duracaoaberturabalcao;
+	//---
 	printf("Duracao do balcao: %d", membalcao->duracaoaberturabalcao);
 
 	char pidchar2[300];
@@ -348,16 +363,16 @@ void *thr_func(void *content){
 
 
 
-	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "fecha_balcao", pidchar2);
+	writeLogEntryCharPid(shm->log_file, shm->log_name, blc+1, "fecha_balcao", pidchar2); //writes on log file the event "fecha balcao";
 
 
-	if(shm->nrBalcoesAbertos == 1){
-		writeLogEntryCharPid(shm->log_file, shm->log_name, blc + 1, "fecha_loja ", pidchar2);
-		destroy_shared_memory(shm, sizeof(Store_memory), membalcao->nomeMem);
+	if(shm->nrBalcoesAbertos == 1){ //if the last desk is closing
+		writeLogEntryCharPid(shm->log_file, shm->log_name, blc + 1, "fecha_loja ", pidchar2); //writes on log file the event "fecha loja";
+		destroy_shared_memory(shm, sizeof(Store_memory), membalcao->nomeMem); //the store will close too
 	}
 
 	else
-		shm->nrBalcoesAbertos--;
+		shm->nrBalcoesAbertos--; //else it justs updates the number of desks open
 
 
 	free(membalcao); //frees the memory
@@ -370,19 +385,21 @@ void *thr_func(void *content){
 int main(int nrarg, char *path[]){ 
 
 
-	if(nrarg != 3){
+	if(nrarg != 3){ //checks if the number of arguments is right
 		printf("\nWrong number of arguments\n");
 		return 1;
 	}
 
 	Desk_m *sending;
-	sending = (Desk_m *) malloc(sizeof(Desk_m));
+	sending = (Desk_m *) malloc(sizeof(Desk_m));   
 
+	//sends information about the desk to the struct
 	sending->duracaoaberturabalcao = atoi(path[2]);
-	sending->nomeMem = path[1];
+	sending->nomeMem = path[1];  
+	//--------------
 
 	pthread_t tid;
-	pthread_create(&tid, NULL, thr_func, (void*) sending); 
+	pthread_create(&tid, NULL, thr_func, (void*) sending);  //creates the desk thread
 
 	pthread_exit(NULL);
 
